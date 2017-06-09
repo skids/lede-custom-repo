@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ebtables-dhcpsnoop
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/skids/ebtables-dhcpsnooping.git
-PKG_SOURCE_DATE:=2017-05-25
-PKG_SOURCE_VERSION:=a21bc324ea5ba1319de3f83acc23550ac6fcad6b
+PKG_SOURCE_DATE:=2017-06-09
+PKG_SOURCE_VERSION:=c3adae9de36098f4c5873c291118ac8c0f16dc99
 #PKG_MIRROR_HASH:=
 PKG_MAINTAINER:=Brian S. Julin <bri@abrij.org>
 
