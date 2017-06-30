@@ -1,0 +1,71 @@
+config dhcpsnooping ebtables
+        option enabled          'on'
+
+	# List your valid DHCP servers.
+        # DHCP responses will *only* be allowed from these addresses,
+        # so at least one host or relay should be listed.
+	#list dhcpd '00:00:5e:00:53:00/192.0.2.1'
+	#list dhcpd '00:00:5e:00:53:01/192.0.2.2'
+
+        # Other MAC addresses never allowed on access ports like gateways
+	# There is no need to add macs already listed as DHCP servers.
+        #list protectMAC         '00:00:5e:00:53:02'
+        #list protectMAC         '00:00:5e:00:53:03'
+
+        # Where to insert ebtables rules
+        option offsetPrerouting '0'
+        option offsetForward    '0'
+
+        # Name of bridge filter table to use
+        option snoopTable      'dhcpsnooping'
+
+        # Access/roaming untrusted interface names start with these
+        list roamPattern      'wl'
+        list roamPattern      'wi'
+
+        # What interfaces are bridge ports
+        option bridgePattern    'br'
+
+	# Unfortunately, you must also list the names of all bridges
+	# matched by bridgePattern explcitly.  Maybe nftable concatenation
+	# expressions will allow use of strings someday and we can get
+	# rid of this.  It's OK to list interfaces not matched by
+	# bridgePattern, and we do here in hopes of being operational on
+	# initial installation... but you'll want to prune back this default
+	# list for efficiency.
+	list bridgeName		'br-vlan1'
+	list bridgeName		'br-vlan2'
+	list bridgeName		'br-vlan3'
+	list bridgeName		'br-vlan4'
+	list bridgeName		'br-vlan5'
+	list bridgeName		'br-vlan6'
+	list bridgeName		'br-vlan7'
+	list bridgeName		'br-vlan8'
+	list bridgeName		'br-1'
+	list bridgeName		'br-2'
+	list bridgeName		'br-3'
+	list bridgeName		'br-4'
+	list bridgeName		'br-5'
+	list bridgeName		'br-6'
+	list bridgeName		'br-7'
+	list bridgeName		'br-8'
+
+        # Subnet of control plane and port for UDP broadcasts
+        option broadcastAddr    '127.0.0.1/8'
+        option broadcastPort    '1000'
+
+        # For ebtables-dhcpsnooping-mysql-ap package only
+        # option mysqlConfFile    '/etc/dhcpsnoopingd.my.cnf'
+
+        # For ebtables-dhcpsnooping-pgsql-ap package only
+        option pgsqlConfFile    '/etc/dhcpsnoopingd.pg.cnf'
+        option pgsqlConfName    'dhcpsnooping'
+
+        # Possible debug flags.  Mix as needed.
+        #list debug              'general'
+        #list debug              'udp'
+        #list debug              'nflog'
+        #list debug              'neigh'
+        #list debug              'dhcp'
+        #list debug              'all'
+        #list debug              'verbose'
