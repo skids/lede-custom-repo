@@ -13,7 +13,7 @@ PKG_RELEASE:=4
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/skids/ebtables-dhcpsnooping.git
 PKG_SOURCE_DATE:=2017-06-30
-PKG_SOURCE_VERSION:=4d87975976781010eef8361dd89d410d821b8bde
+PKG_SOURCE_VERSION:=6cb9c9766a332d070e2b1314720a7e7360be3d3f
 #PKG_MIRROR_HASH:=
 PKG_MAINTAINER:=Brian S. Julin <bri@abrij.org>
 
@@ -34,7 +34,7 @@ TARGET_CPPFLAGS := -D_GNU_SOURCE -I$(STAGING_DIR)/usr/lib/libnet-1.2.x/include/ 
 TARGET_CFLAGS := -D_GNU_SOURCE $(filter-out -D_FORTIFY_SOURCE=1,$(TARGET_CFLAGS))
 TARGET_CFLAGS += -DCHAINNAME=\"\\\"dhcpsnooping\\\"\"
 TARGET_CFLAGS += -DNFSETPREFIX=\"\\\"leases-\\\"\"
-TARGET_CFLAGS += -DNFTABLE=\"\\\"bridge\\\ dhcpsnooping\\\"\"
+TARGET_CFLAGS += -DNFTABLE=\"\\\"dhcpsnooping\\\"\"
 TARGET_CFLAGS += -DNFTABLES=\"\\\"nft\\\"\"
 TARGET_CFLAGS += -DEBTABLES=\"\\\"ebtables\\\"\"
 TARGET_CFLAGS += -DMYCNF=\"\\\"/etc/dhcpsnooping.my.cnf\\\"\"
