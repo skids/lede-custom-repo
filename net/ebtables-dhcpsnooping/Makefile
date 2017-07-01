@@ -204,7 +204,7 @@ define Package/nftables-dhcpsnooping-mysql-ap/install
 	$(INSTALL_DIR) $(1)/etc
 	$(INSTALL_CONF) ./files/etc_my_cnf $(1)/etc/dhcpsnoopingd.my.cnf
 	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/conf_dhcpsnooping_mysql $(1)/etc/config/dhcpsnooping
+	$(INSTALL_CONF) ./files/conf_dhcpsnooping_mysql_nf $(1)/etc/config/dhcpsnooping
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/initd_dhcpsnooping_nf $(1)/etc/init.d/dhcpsnooping
 endef
@@ -255,7 +255,7 @@ define Package/nftables-dhcpsnooping-pgsql-ap/install
 	$(INSTALL_DIR) $(1)/etc
 	$(INSTALL_CONF) ./files/etc_pg_cnf $(1)/etc/dhcpsnoopingd.pg.cnf
 	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/conf_dhcpsnooping_pgsql $(1)/etc/config/dhcpsnooping
+	$(INSTALL_CONF) ./files/conf_dhcpsnooping_pgsql_nf $(1)/etc/config/dhcpsnooping
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/initd_dhcpsnooping_nf $(1)/etc/init.d/dhcpsnooping
 endef
