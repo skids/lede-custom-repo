@@ -34,7 +34,7 @@ TARGET_CPPFLAGS := -D_GNU_SOURCE -I$(STAGING_DIR)/usr/lib/libnet-1.2.x/include/ 
 TARGET_CFLAGS := -D_GNU_SOURCE $(filter-out -D_FORTIFY_SOURCE=1,$(TARGET_CFLAGS))
 TARGET_CFLAGS += -DCHAINNAME=\"\\\"dhcpsnooping\\\"\"
 TARGET_CFLAGS += -DNFSETPREFIX=\"\\\"leases-\\\"\"
-TARGET_CFLAGS += -DNFTABLE=\"\\\"bridge\\ dhcpsnooping\\\"\"
+TARGET_CFLAGS += -DNFTABLE=\"\\\"bridge\\\ dhcpsnooping\\\"\"
 TARGET_CFLAGS += -DNFTABLES=\"\\\"nft\\\"\"
 TARGET_CFLAGS += -DEBTABLES=\"\\\"ebtables\\\"\"
 TARGET_CFLAGS += -DMYCNF=\"\\\"/etc/dhcpsnooping.my.cnf\\\"\"
