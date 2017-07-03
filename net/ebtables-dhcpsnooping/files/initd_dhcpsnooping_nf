@@ -1,5 +1,15 @@
 #!/bin/sh /etc/rc.common
-# Copyright (C) 2011 OpenWrt.org
+# Copyright (C) 2017 Brian S. Julin <bri@abrij.org>
+
+
+# Currently this needs nft 1.7 ....plus this patch:
+# 	http://patchwork.ozlabs.org/patch/778719/
+# Note you cannot dump/restore the nft rules due to a printing
+# problem with this patch.
+#
+# Hopefully future versions of nft will enhance ARP IP/ETH
+# payload support and this will be less of an eyesore/pain.
+# Also support for briport/iifname in concats would way help.
 
 START=30
 USE_PROCD=1
@@ -9,119 +19,120 @@ PROG=/usr/sbin/dhcpsnoopingd
 nft_remove() {
         nft flush  chain bridge ${1} frame          2> /dev/null
 	nft delete chain bridge ${1} frame          2> /dev/null
+	nft flush  chain bridge ${1} dhcp-f-access  2> /dev/null
 	nft flush  chain bridge ${1} ip-f-access    2> /dev/null
-        nft flush  chain bridge ${1} arp-f-access   2> /dev/null
-        nft flush  chain bridge ${1} ip-t-access    2> /dev/null
-        nft flush  chain bridge ${1} arp-t-access   2> /dev/null
-        nft flush  chain bridge ${1} brframe        2> /dev/null
-        nft delete chain bridge ${1} ip-f-access    2> /dev/null
-        nft delete chain bridge ${1} arp-f-access   2> /dev/null
-        nft delete chain bridge ${1} ip-t-access    2> /dev/null
-        nft delete chain bridge ${1} arp-t-access   2> /dev/null
+	nft flush  chain bridge ${1} arp-f-access   2> /dev/null
+	nft flush  chain bridge ${1} ip-t-access    2> /dev/null
+	nft flush  chain bridge ${1} arp-t-access   2> /dev/null
+	nft flush  chain bridge ${1} brframe        2> /dev/null
+	nft delete chain bridge ${1} dhcp-f-access  2> /dev/null
+	nft delete chain bridge ${1} ip-f-access    2> /dev/null
+	nft delete chain bridge ${1} arp-f-access   2> /dev/null
+	nft delete chain bridge ${1} ip-t-access    2> /dev/null
+	nft delete chain bridge ${1} arp-t-access   2> /dev/null
 	nft delete chain bridge ${1} brframe        2> /dev/null
 	nft delete set   bridge ${1} inframacs      2> /dev/null
 	nft delete set   bridge ${1} dhcpd          2> /dev/null
 	nft delete set   bridge ${1} penalty-box    2> /dev/null
+	nft delete set   bridge ${1} fastpath       2> /dev/null
 }
 
 # Install nftables policy.  Some parts are filled in dynamically, see comments.
 nft_rebuild() {
+
 	nft_remove ${1}
 
-	# Define sets
-	nft "
-table bridge ${1} {
-	set inframacs {
-		type ether_addr
-	}
-	set dhcpd {
-		type ether_addr . ipv4_addr
-	}
-	# Per-interface lease tables
-	#set leases-* {
-	#	type ether_addr . ipv4_addr
-	#}
-	set penalty-box {
-		type ether_addr
-		flags timeout
-	}
+	# Create our table
+	nft create table bridge ${1} 2> /dev/null
+
+	# Define sets.  These do not work well as a single config block.
+	nft create set bridge ${1} inframacs	{ type ether_addr \; }
+	nft create set bridge ${1} dhcpd	{ type ether_addr . ipv4_addr \; }
+	nft create set bridge ${1} penalty-box	{ type ether_addr \; flags timeout \; }
+	nft create set bridge ${1} fastpath	{ type iface_index . ether_addr . ipv4_addr \; flags timeout \; }
+
+	nft create chain bridge dhcpsnooping dhcp-f-access;
+	RULE="nft add rule bridge dhcpsnooping dhcp-f-access"
+	# it does not show up in dumps, but "ip protocol udp" is needed
+	$RULE ip protocol udp udp sport bootps set update ether saddr timeout 5s @penalty-box drop
+	$RULE ip protocol udp udp sport bootpc log group 1 queue-threshold 1 accept
+	$RULE drop
+
+	nft create chain bridge dhcpsnooping ip-f-access;
+	RULE="nft add rule bridge dhcpsnooping ip-f-access"
+	$RULE ether saddr @penalty-box drop
+	$RULE ether saddr @inframacs drop
+	# it does not show up in dumps, but "ip protocol udp" is needed
+	$RULE ip protocol udp udp dport bootps jump dhcp-f-access
+	$RULE ip protocol udp udp dport bootpc set update ether saddr timeout 5s @penalty-box drop
+	$RULE meta iif . ether saddr . ip saddr @fastpath accept
+	# Per-if rules of form:
+	# meta iifname * ether saddr . ip saddr @leases-* accept
+	# Added after per-if rules:
+	# udp sport bootpc udp dport bootps log group 1 queue-threshold 1 accept
+	# drop
+
+	nft create chain bridge dhcpsnooping ip-t-access;
+	RULE="nft add rule bridge dhcpsnooping ip-t-access"
+	# fastpath rule inserted after per-if rules:
+	# meta oif . ether daddr . ip daddr @fastpath accept
+	# Per-if rules inserted here
+	# meta oifname * ether daddr . ip daddr @leases-* accept
+	$RULE ether saddr . ip saddr @dhcpd udp sport bootps udp dport bootpc log group 1 queue-threshold 1 accept
+	$RULE drop
+
+	nft create chain bridge dhcpsnooping arp-f-access;
+	RULE="nft add rule bridge dhcpsnooping arp-f-access"
+	$RULE ether saddr @inframacs drop
+	$RULE ether saddr @penalty-box drop
+	# Per-interface rules of form:
+	# meta ibriport * @arp,nh,ether_addr,64,48 . @arp,nh,ipv4_addr,112,32 @leases-* ether saddr . @arp,nh,ipv4_addr,112,32 @leases-* accept
+	# Added after per-interface rules
+	# set update ether saddr timeout 5s @penalty-box drop
+
+	nft create chain bridge dhcpsnooping arp-t-access;
+	RULE="nft add rule bridge dhcpsnooping arp-t-access"
+	$RULE accept
+
+	nft create chain bridge dhcpsnooping brframe;
+	RULE="nft add rule bridge dhcpsnooping brframe"
+	# Per ifname-glob rules of form:
+	# meta protocol ip iifname * jump ip-f-access
+	# meta protocol ip oifname * jump ip-t-access
+	# meta protocol arp arp htype 1 arp ptype ip iifname * jump arp-f-access
+	# meta protocol arp arp htype 1 arp ptype ip oifname * jump arp-t-access
+	$RULE drop
+
+	nft create chain bridge dhcpsnooping frame { type filter hook forward priority 0 \; policy drop \; }
+	RULE="nft add rule bridge dhcpsnooping frame"
+	# Per ifname-glob rules inserted of form:
+	# ibriport * jump brframe
+	$RULE continue
+
 }
-"
-	# Define chains
-	nft "
-table bridge ${1} {
-	chain ip-f-access {
-		ether saddr @penalty-box drop
-		ether saddr @inframacs drop
-		ip saddr 0.0.0.0 udp sport bootpc udp dport bootps log group 1 accept
-		udp sport bootps drop
-		# Per-interface rules of form:
-		# meta iifname * ether saddr . ip saddr @leases-* accept
-		# Added after per-interface rules:
-		# udp sport bootpc udp dport bootps log group 1 accept
-		# drop
-	}
 
-	chain ip-t-access {
-		# Per-interface rules inserted at top
-		# meta oifname * ether daddr . ip daddr @leases-* accept
-		ether saddr . ip saddr @dhcpd udp sport bootps udp dport bootpc log group 1 accept
-		drop
-	}
-
-	chain arp-f-access {
-		ether saddr @inframacs drop
-		ip saddr 0.0.0.0 drop
-		ether saddr @penalty-box drop
-		# Per-interface rules of form:
-		# meta iifname * ether saddr . ip saddr @leases-* accept
-		# Added after per-interface rules
-		# set update ether saddr timeout 10s @penalty-box drop
-	}
-
-	chain arp-t-access {
-		accept
-	}
-
-	chain brframe {
-		# Per ifname-glob rules of form:
-		# meta protocol ip iifname * jump ip-f-access
-		# meta protocol ip oifname * jump ip-t-access
-		# meta protocol arp iifname * jump arp-f-access
-		# meta protocol arp oifname * jump arp-t-access
-		drop
-	}
-
-	chain frame {
-		type filter hook forward priority 0; policy drop;
-		# Per ifname-glob rules inserted of form:
-		# ibriport * jump brframe
-		continue
-	}
-}
-"
-}
 
 # Add the rest of the static rules
 nft_finish() {
-	nft add rule bridge ${1} ip-f-access udp sport bootpc udp dport bootps log group 1 accept
+	nft insert rule bridge ${1} ip-t-access meta oif . ether daddr . ip daddr @fastpath accept
+	nft add rule bridge ${1} ip-f-access udp sport bootpc udp dport bootps log group 1 queue-threshold 1 accept
 	nft add rule bridge ${1} ip-f-access drop
-	nft add rule bridge ${1} arp-f-access set update ether saddr timeout 10s @penalty-box drop
+	nft add rule bridge ${1} arp-f-access set update ether saddr timeout 5s @penalty-box drop
 }
 
 validate_dhcpsnooping_section() {
 	uci_validate_section dhcpsnooping dhcpsnooping "${1}" \
 		'enabled:bool:1' 'protectMAC:list(string)' 'broadcastPort:port' \
-                'broadcastAddr:cidr4' 'roamPattern:list(string)' 'bridgePattern:string' \
-                'offsetPrerouting:string' 'offsetForward:string' 'snoopTable:string' \
-                'mysqlConfFile:string' 'pgsqlConfFile:string' 'pgsqlConfName:string' \
-                'debug:list(string)' 'dhcpd:list(string)' 'bridgeName:list(string)'
+		'broadcastAddr:cidr4' 'roamPattern:list(string)' 'bridgePattern:string' \
+		'bridgeName:list(string)' 'snoopTable:string' \
+		'mysqlConfFile:string' 'pgsqlConfFile:string' 'pgsqlConfName:string' \
+		'debug:list(string)' 'dhcpd:list(string)'
 }
 
 start_service() {
 	local enabled protectMAC broadcastPort broadcastAddr
 
-	validate_dhcpsnooping_section ebtables || {
+	validate_dhcpsnooping_section nftables || {
 		echo "validation failed"
 		return 1
 	}
@@ -149,7 +160,7 @@ start_service() {
 	fi
 	if [ -n "$mysqlConfFile" ] ; then
 		db="--mysql-config-file=$mysqlConfFile"
-        fi
+	fi
 
 	procd_open_instance
 	procd_set_param command "$PROG" $debugs --broadcast-port=$broadcastPort --broadcast-addr=$broadcastAddr $db $roams
@@ -167,16 +178,16 @@ start_service() {
 	done
 	for ifn in $bridgeName; do
 		nft "add set bridge $snoopTable leases-$ifn { type ether_addr . ipv4_addr ; }"
-		nft "add rule bridge $snoopTable ip-f-access meta iifname $ifn ether saddr . ip saddr @leases-$ifn accept"
-		nft "insert rule bridge $snoopTable ip-t-access meta oifname $ifn ether daddr . ip daddr @leases-$ifn accept"
-		nft "add rule bridge $snoopTable arp-f-access meta iifname $ifn ether saddr . ip saddr @leases-$ifn accept"
+		nft "add rule bridge $snoopTable ip-f-access meta ibriport $ifn ether saddr . ip saddr @leases-$ifn set update meta iif . ether saddr . ip saddr timeout 60s @fastpath accept"
+		nft "insert rule bridge $snoopTable ip-t-access meta obriport $ifn ether daddr . ip daddr @leases-$ifn set update meta oif . ether daddr . ip daddr timeout 60s @fastpath accept"
+		nft "add rule bridge $snoopTable arp-f-access meta ibriport $ifn @arp,nh,ether_addr,64,48 . @arp,nh,ipv4_addr,112,32 @leases-$ifn ether saddr . @arp,nh,ipv4_addr,112,32 @leases-$ifn accept"
 	done
 
 	for pat in $roamPattern; do
-		nft "insert rule bridge $snoopTable brframe meta protocol arp oifname $pat* jump arp-t-access"
+		nft "insert rule bridge $snoopTable brframe meta protocol arp arp htype 1 arp ptype ip arp hlen 6 arp plen 4 meta oifname $pat* jump arp-t-access"
 	done
 	for pat in $roamPattern; do
-		nft "insert rule bridge $snoopTable brframe meta protocol arp iifname $pat* jump arp-f-access"
+		nft "insert rule bridge $snoopTable brframe meta protocol arp arp htype 1 arp ptype ip arp hlen 6 arp plen 4 meta iifname $pat* jump arp-f-access"
 	done
 	for pat in $roamPattern; do
 		nft "insert rule bridge $snoopTable brframe meta protocol ip oifname $pat* jump ip-t-access"
@@ -197,12 +208,11 @@ start_service() {
 stop_service() {
 	local enabled protectMAC broadcastPort broadcastAddr
 
-	validate_dhcpsnooping_section ebtables || {
+	validate_dhcpsnooping_section nftables || {
 		echo "validation failed"
 		return 1
 	}
 
 	# Flush everything but leave the leases sets
-        nft_remove $snoopTable
+	nft_remove $snoopTable
 }
-
