@@ -172,7 +172,7 @@ define Package/nftables-dhcpsnooping-mysql-ap
   TITLE:=DHCP Snooping Daemon (nftables-based)
   URL:=https://github.com/skids/nftables-dhcpsnooping
   VARIANT:=nftmysql
-  DEPENDS:=+nftables +kmod-nft-core +kmod-nfnetlink-log +libnl-genl +libnl-nf +libnl-route +libmysqlclient +libnet-1.2.x
+  DEPENDS:=+nftables +kmod-br-netfilter +kmod-nft-core +kmod-nfnetlink-log +libnl-genl +libnl-nf +libnl-route +libmysqlclient +libnet-1.2.x
   BUILD_DEPENDS:=libnet-1.2.x libmysqlclient
 endef
 
@@ -223,7 +223,7 @@ define Package/nftables-dhcpsnooping-pgsql-ap
   TITLE:=DHCP Snooping Daemon (nftables-based)
   URL:=https://github.com/skids/nftables-dhcpsnooping
   VARIANT:=nftpgsql
-  DEPENDS:=+nftables +kmod-nft-core +kmod-nfnetlink-log +kmod-nfnetlink-log +libnl-genl +libnl-nf +libnl-route +libpq +libnet-1.2.x
+  DEPENDS:=+nftables +kmod-br-netfilter +kmod-nft-core +kmod-nfnetlink-log +kmod-nfnetlink-log +libnl-genl +libnl-nf +libnl-route +libpq +libnet-1.2.x
   BUILD_DEPENDS:=libnet-1.2.x libpq
 endef
 
